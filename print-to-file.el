@@ -15,10 +15,10 @@
 ;;
 ;; PDF output commands:
 ;;
-;; - `pdf-print-buffer-to-file`           ; 1-up PDF with faces
-;; - `pdf-print-buffer-to-file-no-faces`  ; 1-up PDF without faces
-;; - `pdf-print-buffer-to-file-2up`       ; 2-up PDF with faces
-;; - `pdf-print-buffer-to-file-2up-no-faces` ; 2-up PDF without faces
+;; - `pdf-print-buffer-to-file-with-faces`           ; 1-up PDF with faces
+;; - `pdf-print-buffer-to-file`                      ; 1-up PDF without faces
+;; - `pdf-print-buffer-to-file-2up-with-faces`       ; 2-up PDF with faces
+;; - `pdf-print-buffer-to-file-2up`                  ; 2-up PDF without faces
 ;;
 ;; Each PDF command:
 ;; - Converts the buffer to a `.ps` file via `ps-print`
@@ -29,10 +29,10 @@
 ;;
 ;; PostScript-only versions are also available:
 ;;
-;; - `ps-print-buffer-to-file`              ; 1-up PS with faces
-;; - `ps-print-buffer-to-file-no-faces`     ; 1-up PS without faces
-;; - `ps-print-buffer-to-file-2up`          ; 2-up PS with faces
-;; - `ps-print-buffer-to-file-2up-no-faces` ; 2-up PS without faces
+;; - `ps-print-buffer-to-file-with-faces`              ; 1-up PS with faces
+;; - `ps-print-buffer-to-file`                         ; 1-up PS without faces
+;; - `ps-print-buffer-to-file-2up-with-faces`          ; 2-up PS with faces
+;; - `ps-print-buffer-to-file-2up`                     ; 2-up PS without faces
 ;;
 ;; These generate `.ps` or `.2up.ps` files and do not delete them.
 ;;
@@ -55,8 +55,16 @@
 ;; Note: You can generate PostScript output without this package by using a prefix argument:
 ;;   C-u M-x ps-print-buffer-with-faces
 ;; This prompts for a file and writes PostScript directly.
-;;
+
 ;;; Code:
+
+(defmacro printfile--validate-and-names (&optional suffix)
+  `(let* ((base (file-name-nondirectory buffer-file-name))
+          (psfile (concat base ".ps"))
+          (ps2upfile (concat base ".2up.ps"))
+          (pdffile (concat base ,(if suffix (concat "." suffix ".pdf") ".pdf"))))
+     (printfile--validate-buffer)
+     (list base psfile ps2upfile pdffile)))
 
 (defun printfile--confirm-no-overwrite (file)
   "Raise an error unless FILE does not exist or the user agrees to overwrite."
@@ -75,178 +83,118 @@
     (write-region (point-min) (point-max) psfile)
     (kill-buffer "*PostScript*")))
 
-;;;###autoload
-(defun pdf-print-buffer-to-file ()
-  "Print current buffer to a 1-up PDF with faces (color syntax highlighting)."
-  (interactive)
+(defun printfile--convert-to-pdf (infile outfile)
+  "Convert INFILE to OUTFILE using ps2pdf."
+  (let ((cmd (format "ps2pdf %s %s"
+                     (shell-quote-argument infile)
+                     (shell-quote-argument outfile))))
+    (message "Running: %s" cmd)
+    (if (= (shell-command cmd) 0)
+        (progn
+          (delete-file infile)
+          (message "Created PDF: %s" outfile))
+      (message "PDF creation failed. See shell output."))))
+
+(defun printfile--convert-to-2up (infile outfile)
+  "Convert INFILE to 2-up OUTFILE using psnup."
+  (let ((cmd (format "psnup -2 %s %s"
+                     (shell-quote-argument infile)
+                     (shell-quote-argument outfile))))
+    (message "Running: %s" cmd)
+    (if (= (shell-command cmd) 0)
+        (progn
+          (delete-file infile)
+          t)
+      (message "2-up conversion failed. See shell output.")
+      nil)))
+
+(defun printfile--validate-buffer ()
   (unless buffer-file-name
     (user-error "This buffer is not visiting a file."))
   (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
+    (user-error "Don't run this command from the *PostScript* buffer.")))
 
-  (let* ((base (file-name-nondirectory buffer-file-name))
-         (psfile (expand-file-name (concat base ".ps")))
-         (pdffile (expand-file-name (concat base ".pdf"))))
+;;; PDF output commands
+
+;;;###autoload
+(defun pdf-print-buffer-to-file-with-faces ()
+  "Generate a 1-up PDF with faces."
+  (interactive)
+  (cl-destructuring-bind (_ psfile _ pdffile) (printfile--validate-and-names nil)
     (dolist (f (list psfile pdffile)) (printfile--confirm-no-overwrite f))
     (printfile--write-postscript t psfile)
-    (let ((cmd (format "ps2pdf %s %s"
-                       (shell-quote-argument psfile)
-                       (shell-quote-argument pdffile))))
-      (message "Running: %s" cmd)
-      (if (= (shell-command cmd) 0)
-          (progn
-            (delete-file psfile)
-            (message "Created PDF: %s" pdffile))
-        (message "PDF creation failed. See shell output.")))))
+    (printfile--convert-to-pdf psfile pdffile)))
 
 ;;;###autoload
-(defun pdf-print-buffer-to-file-no-faces ()
-  "Print current buffer to a 1-up PDF without faces (plain black and white)."
+(defun pdf-print-buffer-to-file ()
+  "Generate a 1-up PDF without faces."
   (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-
-  (let* ((base (file-name-nondirectory buffer-file-name))
-         (psfile (expand-file-name (concat base ".ps")))
-         (pdffile (expand-file-name (concat base ".pdf"))))
+  (cl-destructuring-bind (_ psfile _ pdffile) (printfile--validate-and-names nil)
     (dolist (f (list psfile pdffile)) (printfile--confirm-no-overwrite f))
     (printfile--write-postscript nil psfile)
-    (let ((cmd (format "ps2pdf %s %s"
-                       (shell-quote-argument psfile)
-                       (shell-quote-argument pdffile))))
-      (message "Running: %s" cmd)
-      (if (= (shell-command cmd) 0)
-          (progn
-            (delete-file psfile)
-            (message "Created PDF: %s" pdffile))
-        (message "PDF creation failed. See shell output.")))))
+    (printfile--convert-to-pdf psfile pdffile)))
+
+;;;###autoload
+(defun pdf-print-buffer-to-file-2up-with-faces ()
+  "Generate a 2-up PDF with faces."
+  (interactive)
+  (cl-destructuring-bind (_ psfile ps2upfile pdffile) (printfile--validate-and-names "2up")
+    (dolist (f (list psfile ps2upfile pdffile)) (printfile--confirm-no-overwrite f))
+    (printfile--write-postscript t psfile)
+    (when (printfile--convert-to-2up psfile ps2upfile)
+      (printfile--convert-to-pdf ps2upfile pdffile))))
 
 ;;;###autoload
 (defun pdf-print-buffer-to-file-2up ()
-  "Print current buffer to a 2-up PDF with faces (color syntax highlighting)."
+  "Generate a 2-up PDF without faces."
   (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-
-  (let* ((base (file-name-nondirectory buffer-file-name))
-         (psfile (expand-file-name (concat base ".ps")))
-         (ps2upfile (expand-file-name (concat base ".2up.ps")))
-         (pdffile (expand-file-name (concat base ".2up.pdf"))))
-    (dolist (f (list psfile ps2upfile pdffile)) (printfile--confirm-no-overwrite f))
-    (printfile--write-postscript t psfile)
-    (let ((cmd (format "psnup -2 %s %s && ps2pdf %s %s"
-                       (shell-quote-argument psfile)
-                       (shell-quote-argument ps2upfile)
-                       (shell-quote-argument ps2upfile)
-                       (shell-quote-argument pdffile))))
-      (message "Running: %s" cmd)
-      (if (= (shell-command cmd) 0)
-          (progn
-            (delete-file psfile)
-            (delete-file ps2upfile)
-            (message "Created 2-up PDF: %s" pdffile))
-        (message "Failed to create 2-up PDF. See shell output.")))))
-
-;;;###autoload
-(defun pdf-print-buffer-to-file-2up-no-faces ()
-  "Print current buffer to a 2-up PDF without faces (plain black and white)."
-  (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-
-  (let* ((base (file-name-nondirectory buffer-file-name))
-         (psfile (expand-file-name (concat base ".ps")))
-         (ps2upfile (expand-file-name (concat base ".2up.ps")))
-         (pdffile (expand-file-name (concat base ".2up.pdf"))))
+  (cl-destructuring-bind (_ psfile ps2upfile pdffile) (printfile--validate-and-names "2up")
     (dolist (f (list psfile ps2upfile pdffile)) (printfile--confirm-no-overwrite f))
     (printfile--write-postscript nil psfile)
-    (let ((cmd (format "psnup -2 %s %s && ps2pdf %s %s"
-                       (shell-quote-argument psfile)
-                       (shell-quote-argument ps2upfile)
-                       (shell-quote-argument ps2upfile)
-                       (shell-quote-argument pdffile))))
-      (message "Running: %s" cmd)
-      (if (= (shell-command cmd) 0)
-          (progn
-            (delete-file psfile)
-            (delete-file ps2upfile)
-            (message "Created 2-up PDF: %s" pdffile))
-        (message "Failed to create 2-up PDF. See shell output.")))))
+    (when (printfile--convert-to-2up psfile ps2upfile)
+      (printfile--convert-to-pdf ps2upfile pdffile))))
+
+;;; PostScript output commands
+
+;;;###autoload
+(defun ps-print-buffer-to-file-with-faces ()
+  "Generate a 1-up PostScript file with faces."
+  (interactive)
+  (printfile--validate-buffer)
+  (let ((psfile (concat (file-name-nondirectory buffer-file-name) ".ps")))
+    (printfile--confirm-no-overwrite psfile)
+    (printfile--write-postscript t psfile)
+    (message "Created PostScript file: %s" psfile)))
 
 ;;;###autoload
 (defun ps-print-buffer-to-file ()
-  "Print current buffer to a 1-up PostScript file with faces."
+  "Generate a 1-up PostScript file without faces."
   (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-  (let ((psfile (expand-file-name (concat (file-name-nondirectory buffer-file-name) ".ps"))))
-    (printfile--confirm-no-overwrite psfile)
-    (printfile--write-postscript t psfile)
-    (message "Created PostScript file: %s" psfile)))
-
-;;;###autoload
-(defun ps-print-buffer-to-file-no-faces ()
-  "Print current buffer to a 1-up PostScript file without faces."
-  (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-  (let ((psfile (expand-file-name (concat (file-name-nondirectory buffer-file-name) ".ps"))))
+  (printfile--validate-buffer)
+  (let ((psfile (concat (file-name-nondirectory buffer-file-name) ".ps")))
     (printfile--confirm-no-overwrite psfile)
     (printfile--write-postscript nil psfile)
     (message "Created PostScript file: %s" psfile)))
+
+;;;###autoload
+(defun ps-print-buffer-to-file-2up-with-faces ()
+  "Generate a 2-up PostScript file with faces."
+  (interactive)
+  (cl-destructuring-bind (_ psfile ps2upfile _) (printfile--validate-and-names "2up")
+    (dolist (f (list psfile ps2upfile)) (printfile--confirm-no-overwrite f))
+    (printfile--write-postscript t psfile)
+    (when (printfile--convert-to-2up psfile ps2upfile)
+      (message "Created 2-up PostScript file: %s" ps2upfile))))
 
 ;;;###autoload
 (defun ps-print-buffer-to-file-2up ()
-  "Print current buffer to a 2-up PostScript file with faces."
+  "Generate a 2-up PostScript file without faces."
   (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-  (let* ((base (file-name-nondirectory buffer-file-name))
-         (psfile (expand-file-name (concat base ".ps")))
-         (ps2upfile (expand-file-name (concat base ".2up.ps"))))
-    (dolist (f (list psfile ps2upfile)) (printfile--confirm-no-overwrite f))
-    (printfile--write-postscript t psfile)
-    (let ((cmd (format "psnup -2 %s %s"
-                       (shell-quote-argument psfile)
-                       (shell-quote-argument ps2upfile))))
-      (message "Running: %s" cmd)
-      (if (= (shell-command cmd) 0)
-          (progn
-            (message "Created 2-up PostScript file: %s" ps2upfile))
-        (message "2-up PostScript creation failed.")))))
-
-;;;###autoload
-(defun ps-print-buffer-to-file-2up-no-faces ()
-  "Print current buffer to a 2-up PostScript file without faces."
-  (interactive)
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file."))
-  (when (string= (buffer-name) "*PostScript*")
-    (user-error "Don't run this command from the *PostScript* buffer."))
-  (let* ((base (file-name-nondirectory buffer-file-name))
-         (psfile (expand-file-name (concat base ".ps")))
-         (ps2upfile (expand-file-name (concat base ".2up.ps"))))
+  (cl-destructuring-bind (_ psfile ps2upfile _) (printfile--validate-and-names "2up")
     (dolist (f (list psfile ps2upfile)) (printfile--confirm-no-overwrite f))
     (printfile--write-postscript nil psfile)
-    (let ((cmd (format "psnup -2 %s %s"
-                       (shell-quote-argument psfile)
-                       (shell-quote-argument ps2upfile))))
-      (message "Running: %s" cmd)
-      (if (= (shell-command cmd) 0)
-          (message "Created 2-up PostScript file: %s" ps2upfile)
-        (message "2-up PostScript creation failed.")))))
+    (when (printfile--convert-to-2up psfile ps2upfile)
+      (message "Created 2-up PostScript file: %s" ps2upfile))))
 
 (provide 'print-to-file)
 ;;; print-to-file.el ends here
