@@ -42,8 +42,20 @@
 ;;
 ;;   (setq ps-font-size 6.0)
 ;;
+;; Output files use the buffer's filename as a base. For example, if
+;; editing `hello_world.c`, the following files may be created:
+;;
+;; - `hello_world.c.ps`        ; for 1-up output
+;; - `hello_world.c.2up.ps`    ; for 2-up output
+;; - `hello_world.c.pdf`       ; for final 1-up PDF
+;; - `hello_world.c.2up.pdf`   ; for final 2-up PDF
+;;
 ;; Lexical binding enabled for performance; not required by current code.
-
+;;
+;; Note: You can generate PostScript output without this package by using a prefix argument:
+;;   C-u M-x ps-print-buffer-with-faces
+;; This prompts for a file and writes PostScript directly.
+;;
 ;;; Code:
 
 (defun printfile--confirm-no-overwrite (file)
