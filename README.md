@@ -6,17 +6,21 @@ Generate PDF (1-up or 2-up) or PostScript files from the current Emacs buffer us
 
 This package provides four interactive commands for **PDF** output:
 
-- `pdf-print-buffer-to-file-with-faces`: Create a 1-up PDF with faces (color, if enabled)
-- `pdf-print-buffer-to-file`: Create a 1-up PDF without faces (black & white)
-- `pdf-print-buffer-to-file-2up-with-faces`: Create a 2-up PDF with faces
-- `pdf-print-buffer-to-file-2up`: Create a 2-up PDF without faces
+- `pdf-print-buffer-to-file`
+- `pdf-print-buffer-to-file-with-faces`
+- `pdf-print-buffer-to-file-2up`
+- `pdf-print-buffer-to-file-2up-with-faces`
 
 And four commands for **PostScript** output:
 
-- `ps-print-buffer-to-file-with-faces`: Create a 1-up PostScript file with faces
-- `ps-print-buffer-to-file`: Create a 1-up PostScript file without faces
-- `ps-print-buffer-to-file-2up-with-faces`: Create a 2-up PostScript file with faces
-- `ps-print-buffer-to-file-2up`: Create a 2-up PostScript file without faces
+- `ps-print-buffer-to-file`
+- `ps-print-buffer-to-file-with-faces`
+- `ps-print-buffer-to-file-2up`
+- `ps-print-buffer-to-file-2up-with-faces`
+
+Commands ending in -with-faces preserve syntax highlighting and use
+color output (if enabled in Emacs).  The others generate plain
+black-and-white output.
 
 ## Behavior
 
